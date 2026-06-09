@@ -48,7 +48,7 @@ print("🔍 Rilevamento automatico della rete (Subnet)...")
 try:
     subnets = network_client.list_subnets(compartment_id=COMPARTMENT_ID).data
     if not subnets:
-        raise Exception("Nessuna Subnet trouvata.")
+        raise Exception("Nessuna Subnet trovata.")
     SUBNET_ID = subnets[0].id
     print(f"✅ Subnet agganciata in automatico: {subnets[0].display_name} | CIDR: {subnets[0].cidr_block}")
 except Exception as e:
@@ -96,15 +96,15 @@ instance_details = oci.core.models.LaunchInstanceDetails(
 print("\n🚀 AUTOMAZIONE COMPLETA AL 100%! Il cecchino in Cloud entra in azione.")
 tentativo = 1
 
-# Impostiamo il limite a 5 ore e mezza per evitare il kill brutale di GitHub
+# Abbassiamo a 3 ore e mezza (3.5) per evitare interruzioni brusche da parte di GitHub
 start_time = time.time()
-max_duration = 5.5 * 60 * 60  
+max_duration = 3.5 * 60 * 60  
 
 while True:
     # Controllo del tempo rimasto per questa sessione
     if time.time() - start_time > max_duration:
-        print("\n⏳ Limite di sessione raggiunto. Segnalo al workflow di riavviarsi immediatamente...")
-        sys.exit(88) # Codice speciale che dice a GitHub di far ripartire il loop
+        print("\n⏳ Limite di sessione programmato raggiunto. Passo la palla al workflow per il riavvio immediato...")
+        sys.exit(88) # Codice speciale intercettato dal workflow
 
     print(f"\n🚀 [Tentativo {tentativo}] Invio richiesta diretta a Oracle...", end="", flush=True)
 
@@ -122,7 +122,7 @@ while True:
                 
                 if state == "RUNNING":
                     print(f"\n✅ Server ONLINE e pronto! Il cecchino ha concluso il suo lavoro con successo.")
-                    sys.exit(0) # Chiude tutto definitivamente perché abbiamo vinto
+                    sys.exit(0) # Successo definitivo, ferma tutto il loop per sempre
                 elif state in ("TERMINATED", "TERMINATING", "FAULTY"):
                     print(f"💀 Errore critico: L'istanza è entrata in stato {state}. Uscita.")
                     sys.exit(1)
