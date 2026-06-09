@@ -2,7 +2,7 @@ name: Oracle Ampere Sniper
 
 on:
   schedule:
-    # Resta attivo ogni 6 ore come "salvagente" se qualcosa dovesse andare in errore
+    # Resta attivo ogni 6 ore come "salvagente" se l'auto-riavvio dovesse bloccarsi
     - cron: '0 */6 * * *'
   workflow_dispatch: # Permette l'avvio manuale e l'auto-riavvio automatico
 
@@ -33,21 +33,34 @@ jobs:
         OCI_REGION: ${{ secrets.OCI_REGION }}
         OCI_PRIVATE_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY_CONTENT }}
         SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
-      # Intercettiamo l'uscita programmata (Exit code 88) per attivare il riavvio
+      # Esegui lo script e intercetta l'exit code. Se è 0 o 88 gestisce il flusso, altrimenti fallisce
       run: |
         python sniper.py || exit_code=$?
-        if [ "$exit_code" = "88" ]; then
-          echo "TIMEOUT_REACHED=true" >> $GITHUB_ENV
-        elif [ "$exit_code" != "0" ] && [ "$exit_code" != "" ]; then
-          exit $exit_code
+        if [ "$exit_code" = "88" ] || [ "$exit_code" = "0" ] || [ "$exit_code" = "" ]; then
+          echo "SHOULD_RESTART=true" >> $GITHUB_ENV
+          if [ "$exit_code" = "0" ]; then
+            echo "🎉 Vittoria rilevata! Il loop si fermerà dopo il prossimo check."
+            echo "SHOULD_RESTART=false" >> $GITHUB_ENV
+          fi
+        else
+          echo "SHOULD_RESTART=true" >> $GITHUB_ENV
+          echo "⚠️ Errore generico dello script, provo comunque a riavviare."
         fi
 
     - name: Riavvia il loop istantaneamente
-      if: env.TIMEOUT_REACHED == 'true'
+      # 'if: always()' costringe questo step a girare sempre, anche se l'azione sopra è stata cancellata o è fallita
+      if: always()
+      env:
+        # Se lo step sopra ha esplicitamente decretato la vittoria, non riavviare
+        RESTART_STATUS: ${{ env.SHOULD_RESTART }}
       run: |
-        echo "🔄 Tempo sessione scaduto. Lancio un nuovo ciclo immediato..."
-        curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          https://api.github.com/repos/${{ github.repository }}/actions/workflows/oracle_sniper.yml/dispatches \
-          -d '{"ref":"main"}'
+        if [ "$RESTART_STATUS" = "false" ]; then
+          echo "✅ Server creato con successo. Nessun riavvio necessario!"
+        else
+          echo "🔄 Sessione conclusa o interrotta. Lancio un nuovo ciclo immediato..."
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/oracle_sniper.yml/dispatches \
+            -d '{"ref":"main"}'
+        fi
