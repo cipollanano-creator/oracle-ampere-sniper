@@ -1,6 +1,7 @@
 import time
 import os
 import oci
+import sys
 
 print("🎯 Connessione ai server Oracle in corso tramite variabili d'ambiente protette...")
 try:
@@ -19,7 +20,7 @@ try:
     print("✅ Autenticazione riuscita con successo!")
 except Exception as e:
     print(f"❌ Errore di autenticazione: {e}")
-    exit()
+    sys.exit(1)
 
 COMPARTMENT_ID = config["tenancy"]
 
@@ -28,7 +29,7 @@ print("🔑 Caricamento della chiave SSH pubblica...")
 SSH_PUBLIC_KEY = os.environ.get("SSH_PUBLIC_KEY")
 if not SSH_PUBLIC_KEY:
     print("❌ Errore: la variabile d'ambiente SSH_PUBLIC_KEY è vuota.")
-    exit()
+    sys.exit(1)
 print("✅ Chiave SSH caricata correttamente!")
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -41,18 +42,18 @@ try:
     print(f"✅ Zona agganciata in automatico: {AVAILABILITY_DOMAIN}")
 except Exception as e:
     print(f"❌ Errore nel recupero della zona: {e}")
-    exit()
+    sys.exit(1)
 
 print("🔍 Rilevamento automatico della rete (Subnet)...")
 try:
     subnets = network_client.list_subnets(compartment_id=COMPARTMENT_ID).data
     if not subnets:
-        raise Exception("Nessuna Subnet trovata.")
+        raise Exception("Nessuna Subnet trouvata.")
     SUBNET_ID = subnets[0].id
     print(f"✅ Subnet agganciata in automatico: {subnets[0].display_name} | CIDR: {subnets[0].cidr_block}")
 except Exception as e:
     print(f"❌ Errore nel recupero della rete: {e}")
-    exit()
+    sys.exit(1)
 
 print("🔍 Ricerca automatica dell'immagine Oracle Linux per Ampere...")
 try:
@@ -68,7 +69,7 @@ try:
     print(f"✅ Immagine Oracle Linux agganciata in automatico!")
 except Exception as e:
     print(f"❌ Errore nel recupero dell'immagine: {e}")
-    exit()
+    sys.exit(1)
 
 instance_details = oci.core.models.LaunchInstanceDetails(
     availability_domain=AVAILABILITY_DOMAIN,
@@ -95,14 +96,15 @@ instance_details = oci.core.models.LaunchInstanceDetails(
 print("\n🚀 AUTOMAZIONE COMPLETA AL 100%! Il cecchino in Cloud entra in azione.")
 tentativo = 1
 
-# Limitiamo a 5 ore e mezza per raggirare il limite di tempo di GitHub
+# Impostiamo il limite a 5 ore e mezza per evitare il kill brutale di GitHub
 start_time = time.time()
 max_duration = 5.5 * 60 * 60  
 
 while True:
+    # Controllo del tempo rimasto per questa sessione
     if time.time() - start_time > max_duration:
-        print("\n⏳ Limite di sessione raggiunto per questo slot. GitHub riavvierà lo script a breve.")
-        break
+        print("\n⏳ Limite di sessione raggiunto. Segnalo al workflow di riavviarsi immediatamente...")
+        sys.exit(88) # Codice speciale che dice a GitHub di far ripartire il loop
 
     print(f"\n🚀 [Tentativo {tentativo}] Invio richiesta diretta a Oracle...", end="", flush=True)
 
@@ -120,10 +122,10 @@ while True:
                 
                 if state == "RUNNING":
                     print(f"\n✅ Server ONLINE e pronto! Il cecchino ha concluso il suo lavoro con successo.")
-                    exit() 
+                    sys.exit(0) # Chiude tutto definitivamente perché abbiamo vinto
                 elif state in ("TERMINATED", "TERMINATING", "FAULTY"):
                     print(f"💀 Errore critico: L'istanza è entrata in stato {state}. Uscita.")
-                    exit()
+                    sys.exit(1)
                     
             except Exception as poll_err:
                 print(f"   ⚠️ Errore temporaneo di rete nel polling (riprovo...): {poll_err}")
