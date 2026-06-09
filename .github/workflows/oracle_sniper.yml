@@ -2,9 +2,9 @@ name: Oracle Ampere Sniper
 
 on:
   schedule:
-    # Resta come salvagente ogni 6 ore se qualcosa si inceppa
+    # Resta attivo ogni 6 ore come "salvagente" se qualcosa dovesse andare in errore
     - cron: '0 */6 * * *'
-  workflow_dispatch: # Permette l'avvio manuale e il riavvio automatico
+  workflow_dispatch: # Permette l'avvio manuale e l'auto-riavvio automatico
 
 jobs:
   run-sniper:
@@ -33,7 +33,7 @@ jobs:
         OCI_REGION: ${{ secrets.OCI_REGION }}
         OCI_PRIVATE_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY_CONTENT }}
         SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
-      # Aggiungiamo un comando per capire se lo script è uscito per tempo scaduto (Exit code 88)
+      # Intercettiamo l'uscita programmata (Exit code 88) per attivare il riavvio
       run: |
         python sniper.py || exit_code=$?
         if [ "$exit_code" = "88" ]; then
