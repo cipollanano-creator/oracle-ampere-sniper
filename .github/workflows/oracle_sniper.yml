@@ -2,9 +2,9 @@ name: Oracle Ampere Sniper
 
 on:
   schedule:
-    # Esegue lo script ogni 6 ore automaticamente
+    # Resta come salvagente ogni 6 ore se qualcosa si inceppa
     - cron: '0 */6 * * *'
-  workflow_dispatch: # Ti permette di avviarlo manualmente quando vuoi dal sito
+  workflow_dispatch: # Permette l'avvio manuale e il riavvio automatico
 
 jobs:
   run-sniper:
@@ -25,6 +25,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Esegui il Cecchino Oracle
+      id: sniper_step
       env:
         OCI_USER: ${{ secrets.OCI_USER }}
         OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
@@ -32,4 +33,21 @@ jobs:
         OCI_REGION: ${{ secrets.OCI_REGION }}
         OCI_PRIVATE_KEY_CONTENT: ${{ secrets.OCI_PRIVATE_KEY_CONTENT }}
         SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
-      run: python sniper.py
+      # Aggiungiamo un comando per capire se lo script è uscito per tempo scaduto (Exit code 88)
+      run: |
+        python sniper.py || exit_code=$?
+        if [ "$exit_code" = "88" ]; then
+          echo "TIMEOUT_REACHED=true" >> $GITHUB_ENV
+        elif [ "$exit_code" != "0" ] && [ "$exit_code" != "" ]; then
+          exit $exit_code
+        fi
+
+    - name: Riavvia il loop istantaneamente
+      if: env.TIMEOUT_REACHED == 'true'
+      run: |
+        echo "🔄 Tempo sessione scaduto. Lancio un nuovo ciclo immediato..."
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/${{ github.repository }}/actions/workflows/oracle_sniper.yml/dispatches \
+          -d '{"ref":"main"}'
