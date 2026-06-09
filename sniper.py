@@ -5,7 +5,6 @@ import sys
 
 print("🎯 Connessione ai server Oracle in corso tramite variabili d'ambiente protette...")
 try:
-    # Generiamo la configurazione leggendola in modo sicuro dai segreti di GitHub
     config = {
         "user": os.environ["OCI_USER"],
         "fingerprint": os.environ["OCI_FINGERPRINT"],
@@ -13,7 +12,6 @@ try:
         "tenancy": os.environ["OCI_TENANCY"],
         "region": os.environ["OCI_REGION"]
     }
-    
     compute_client = oci.core.ComputeClient(config)
     network_client = oci.core.VirtualNetworkClient(config)
     identity_client = oci.identity.IdentityClient(config)
@@ -24,14 +22,12 @@ except Exception as e:
 
 COMPARTMENT_ID = config["tenancy"]
 
-# ── LETTURA CHIAVE SSH DA VARIABILE PROTETTA ────────────────────────────────
 print("🔑 Caricamento della chiave SSH pubblica...")
 SSH_PUBLIC_KEY = os.environ.get("SSH_PUBLIC_KEY")
 if not SSH_PUBLIC_KEY:
     print("❌ Errore: la variabile d'ambiente SSH_PUBLIC_KEY è vuota.")
     sys.exit(1)
 print("✅ Chiave SSH caricata correttamente!")
-# ─────────────────────────────────────────────────────────────────────────────
 
 print("🔍 Rilevamento automatico della zona (Availability Domain)...")
 try:
@@ -75,36 +71,23 @@ instance_details = oci.core.models.LaunchInstanceDetails(
     availability_domain=AVAILABILITY_DOMAIN,
     compartment_id=COMPARTMENT_ID,
     shape="VM.Standard.A1.Flex",
-    shape_config=oci.core.models.LaunchInstanceShapeConfigDetails(
-        ocpus=4.0,
-        memory_in_gbs=24.0
-    ),
-    source_details=oci.core.models.InstanceSourceViaImageDetails(
-        image_id=IMAGE_ID,
-        boot_volume_size_in_gbs=100
-    ),
-    create_vnic_details=oci.core.models.CreateVnicDetails(
-        subnet_id=SUBNET_ID,
-        assign_public_ip=True
-    ),
-    metadata={
-        "ssh_authorized_keys": SSH_PUBLIC_KEY
-    },
+    shape_config=oci.core.models.LaunchInstanceShapeConfigDetails(ocpus=4.0, memory_in_gbs=24.0),
+    source_details=oci.core.models.InstanceSourceViaImageDetails(image_id=IMAGE_ID, boot_volume_size_in_gbs=100),
+    create_vnic_details=oci.core.models.CreateVnicDetails(subnet_id=SUBNET_ID, assign_public_ip=True),
+    metadata={"ssh_authorized_keys": SSH_PUBLIC_KEY},
     display_name="hermes-agent-ampere"
 )
 
 print("\n🚀 AUTOMAZIONE COMPLETA AL 100%! Il cecchino in Cloud entra in azione.")
 tentativo = 1
 
-# Abbassiamo a 3 ore e mezza (3.5) per evitare interruzioni brusche da parte di GitHub
 start_time = time.time()
 max_duration = 3.5 * 60 * 60  
 
 while True:
-    # Controllo del tempo rimasto per questa sessione
     if time.time() - start_time > max_duration:
-        print("\n⏳ Limite di sessione programmato raggiunto. Passo la palla al workflow per il riavvio immediato...")
-        sys.exit(88) # Codice speciale intercettato dal workflow
+        print("\n⏳ Limite di sessione programmato raggiunto. Termino per riavvio...")
+        sys.exit(0)
 
     print(f"\n🚀 [Tentativo {tentativo}] Invio richiesta diretta a Oracle...", end="", flush=True)
 
@@ -118,11 +101,14 @@ while True:
             try:
                 instance = compute_client.get_instance(instance_id).data
                 state = instance.lifecycle_state
-                print(f"   Stato attuale: {state}")
+                print(f"   Stato acquittal: {state}")
                 
                 if state == "RUNNING":
-                    print(f"\n✅ Server ONLINE e pronto! Il cecchino ha concluso il suo lavoro con successo.")
-                    sys.exit(0) # Successo definitivo, ferma tutto il loop per sempre
+                    print(f"\n✅ Server ONLINE e pronto! Creo il passaporto di vittoria.")
+                    # CREAZIONE FILE DI VITTORIA
+                    with open("vittoria.txt", "w") as f:
+                        f.write("VITTORIA")
+                    sys.exit(0)
                 elif state in ("TERMINATED", "TERMINATING", "FAULTY"):
                     print(f"💀 Errore critico: L'istanza è entrata in stato {state}. Uscita.")
                     sys.exit(1)
