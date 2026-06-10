@@ -6,6 +6,12 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch:
 
+# ── ABILITAZIONE PERMESSI GLOBALI (Risolve l'exit code 4) ──────────────────────
+permissions:
+  actions: write
+  contents: read
+# ─────────────────────────────────────────────────────────────────────────────
+
 jobs:
   run-sniper:
     runs-on: ubuntu-latest
@@ -27,22 +33,21 @@ jobs:
     - name: Controllo intelligente duplicati (Anti-Sdoppiamento)
       id: check_duplicate
       env:
-        GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+        # Usiamo il token standard di sistema che ora ha i permessi corretti
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Conta quanti workflow sono in corso in questo momento
         RUNNING=$(gh run list --workflow=oracle_sniper.yml --status=in_progress --json databaseId --jq 'length')
         echo "🔍 Cecchini attivi rilevati: $RUNNING"
         
-        # Se sono più di 1, questo cron è un duplicato inutile
         if [ "$RUNNING" -gt "1" ]; then
-          echo "⛔ Un cecchino è già in azione. Mi spengo senza riavviare nulla."
+          echo "⚠️ Un cecchino è già in azione. Mi spengo senza riavviare nulla."
           echo "IS_DUPLICATE=true" >> $GITHUB_ENV
         else
           echo "IS_DUPLICATE=false" >> $GITHUB_ENV
         fi
 
     - name: Esegui il Cecchino Oracle
-      # Gira SOLO se non è un duplicato
       if: env.IS_DUPLICATE != 'true'
       env:
         OCI_USER: ${{ secrets.OCI_USER }}
@@ -54,10 +59,10 @@ jobs:
       run: python sniper.py
 
     - name: Riavvia il loop istantaneamente
-      # Gira sempre, MA SOLO se questo job non era un duplicato inutile!
       if: always() && env.IS_DUPLICATE != 'true'
       env:
-        GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+        # Usiamo il token standard anche qui per il riavvio
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         if [ -f "vittoria.txt" ]; then
           echo "🎉 Server creato con successo! Il cecchino si ferma qui."
