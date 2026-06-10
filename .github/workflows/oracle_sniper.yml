@@ -1,14 +1,10 @@
 name: Oracle Ampere Sniper
+
 on:
   schedule:
-    # Il salvagente scatta ogni 6 ore se il loop si è interrotto per qualche motivo
+    # Il salvagente scatta ogni 6 ore se il loop si è interrotto
     - cron: '0 */6 * * *'
   workflow_dispatch:
-
-# Gestione concorrenza corretta
-concurrency:
-  group: oracle-sniper-group
-  cancel-in-progress: true # Se il cron scatta mentre il loop è già attivo, killa il cron duplicato per evitare code infinite
 
 jobs:
   run-sniper:
@@ -28,19 +24,26 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Controlla duplicati
+    - name: Controllo intelligente duplicati (Anti-Sdoppiamento)
+      id: check_duplicate
       env:
         GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
       run: |
-        RUNNING=$(gh run list --workflow=oracle_sniper.yml \
-          --status=in_progress --json databaseId --jq 'length')
+        # Conta quanti workflow sono in corso in questo momento
+        RUNNING=$(gh run list --workflow=oracle_sniper.yml --status=in_progress --json databaseId --jq 'length')
+        echo "🔍 Cecchini attivi rilevati: $RUNNING"
+        
+        # Se sono più di 1, questo cron è un duplicato inutile
         if [ "$RUNNING" -gt "1" ]; then
-          echo "⛔ Duplicato rilevato, esco."
-          exit 0
+          echo "⛔ Un cecchino è già in azione. Mi spengo senza riavviare nulla."
+          echo "IS_DUPLICATE=true" >> $GITHUB_ENV
+        else
+          echo "IS_DUPLICATE=false" >> $GITHUB_ENV
         fi
 
     - name: Esegui il Cecchino Oracle
-      id: sniper_run
+      # Gira SOLO se non è un duplicato
+      if: env.IS_DUPLICATE != 'true'
       env:
         OCI_USER: ${{ secrets.OCI_USER }}
         OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
@@ -51,7 +54,8 @@ jobs:
       run: python sniper.py
 
     - name: Riavvia il loop istantaneamente
-      if: always()
+      # Gira sempre, MA SOLO se questo job non era un duplicato inutile!
+      if: always() && env.IS_DUPLICATE != 'true'
       env:
         GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
       run: |
