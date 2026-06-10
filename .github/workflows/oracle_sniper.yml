@@ -32,7 +32,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
       run: |
-        RUNNING=$(gh run list --workflow=sniper.yml \
+        RUNNING=$(gh run list --workflow=oracle_sniper.yml \
           --status=in_progress --json databaseId --jq 'length')
         if [ "$RUNNING" -gt "1" ]; then
           echo "⛔ Duplicato rilevato, esco."
@@ -60,5 +60,5 @@ jobs:
         else
           echo "🔄 Sessione conclusa o errore. Lancio un nuovo ciclo immediato..."
           sleep 5
-          gh workflow run sniper.yml --ref ${{ github.ref_name }}
+          gh workflow run oracle_sniper.yml --ref ${{ github.ref_name }}
         fi
